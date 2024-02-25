@@ -3,6 +3,9 @@ extends AcceptDialog
 var menu_item_index: int
 var port := 18819
 var ip := "::1"
+## The project that is currently selected when the user hosts a server,
+## or the new project that gets created when the user connetcts to a server
+var online_project: RefCounted
 
 @onready var network_options := $NetworkOptions as VBoxContainer
 @onready var disconnect_button := %Disconnect as Button
@@ -35,16 +38,16 @@ func handle_disconnect() -> void:
 		child.visible = child != disconnect_button
 	multiplayer.multiplayer_peer = null
 	ExtensionsApi.signals.signal_project_data_changed(project_data_changed, true)
+	online_project = null
 
 
 ## Should run only on the server
 func new_user_connected(peer_id: int) -> void:
 	if not multiplayer.is_server():
 		return
-	var project = ExtensionsApi.project.current_project
-	var project_data: Dictionary = project.serialize()
+	var project_data: Dictionary = online_project.serialize()
 	var images_data: Array = []
-	for frame in project.frames:
+	for frame in online_project.frames:
 		for cel in frame.cels:
 			var cel_image: Image = cel.get_image()
 			if is_instance_valid(cel_image) and cel.get_class_name() == "PixelCel":
@@ -52,26 +55,30 @@ func new_user_connected(peer_id: int) -> void:
 	receive_new_project.rpc_id(peer_id, project_data, images_data)
 
 
+## Called from the server to clients when they connect
 @rpc("authority", "call_remote", "reliable")
 func receive_new_project(project_data: Dictionary, images_data: Array) -> void:
-	var new_project = ExtensionsApi.project.new_empty_project()
-	new_project.deserialize(project_data)
+	online_project = ExtensionsApi.project.new_empty_project()
+	online_project.deserialize(project_data)
 	var image_index := 0
-	for frame in new_project.frames:
+	for frame in online_project.frames:
 		for cel in frame.cels:
 			if cel.get_class_name() != "PixelCel":
 				continue
 			var image_data: PackedByteArray = images_data[image_index]
 			var image := Image.create_from_data(
-				new_project.size.x, new_project.size.y, false, Image.FORMAT_RGBA8, image_data
+				online_project.size.x, online_project.size.y, false, Image.FORMAT_RGBA8, image_data
 			)
 			cel.image_changed(image)
 			image_index += 1
-	ExtensionsApi.project.current_project = new_project
+	ExtensionsApi.project.current_project = online_project
 	ExtensionsApi.general.get_canvas().camera_zoom()
 
 
+## Called every time the project data changes
 func project_data_changed(project: RefCounted) -> void:
+	if project != online_project:
+		return
 	var data := {}
 	var cels: Array = project.selected_cels
 	for cel_indices in cels:
@@ -88,24 +95,25 @@ func project_data_changed(project: RefCounted) -> void:
 @rpc("any_peer", "call_remote", "reliable")
 func receive_changes(data: Dictionary) -> void:
 	for cel_indices in data:
-		var project = ExtensionsApi.project.current_project
 		var frame_index: int = cel_indices[0]
 		var layer_index: int = cel_indices[1]
-		var cel = project.frames[frame_index].cels[layer_index]
+		var cel = online_project.frames[frame_index].cels[layer_index]
 		if cel.get_class_name() != "PixelCel":
 			continue
 		var image: Image = cel.image
 		var image_data: PackedByteArray = data[cel_indices]
+		var image_size := image.get_size()
 		image.set_data(
-			image.get_width(), image.get_height(), image.has_mipmaps(), image.get_format(), image_data
+			image_size.x, image_size.y, image.has_mipmaps(), image.get_format(), image_data
 		)
-		ExtensionsApi.general.get_canvas().update_texture(layer_index, frame_index, project)
+		ExtensionsApi.general.get_canvas().update_texture(layer_index, frame_index, online_project)
 
 
 func _on_create_server_pressed() -> void:
 	var server := ENetMultiplayerPeer.new()
 	server.create_server(port, 32)
 	multiplayer.multiplayer_peer = server
+	online_project = ExtensionsApi.project.current_project
 	handle_connect()
 
 
