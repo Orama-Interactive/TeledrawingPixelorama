@@ -5,7 +5,14 @@ var port := 18819
 var ip := "::1"
 ## The project that is currently selected when the user hosts a server,
 ## or the new project that gets created when the user connetcts to a server
-var online_project: RefCounted
+var online_project: RefCounted:
+	set(value):
+		if online_project == value:
+			return
+		online_project = value
+		if not is_instance_valid(value):
+			return
+		online_project.timeline_updated.connect(timeline_updated)
 
 @onready var network_options := $NetworkOptions as VBoxContainer
 @onready var disconnect_button := %Disconnect as Button
@@ -97,6 +104,8 @@ func receive_changes(data: Dictionary) -> void:
 	for cel_indices in data:
 		var frame_index: int = cel_indices[0]
 		var layer_index: int = cel_indices[1]
+		if frame_index >= online_project.frames.size() or layer_index >= online_project.layers.size():
+			continue
 		var cel = online_project.frames[frame_index].cels[layer_index]
 		if cel.get_class_name() != "PixelCel":
 			continue
@@ -107,6 +116,36 @@ func receive_changes(data: Dictionary) -> void:
 			image_size.x, image_size.y, image.has_mipmaps(), image.get_format(), image_data
 		)
 		ExtensionsApi.general.get_canvas().update_texture(layer_index, frame_index, online_project)
+
+
+func timeline_updated():
+	var project_data: Dictionary = online_project.serialize()
+	var images_data: Array = []
+	for frame in online_project.frames:
+		for cel in frame.cels:
+			var cel_image: Image = cel.get_image()
+			if is_instance_valid(cel_image) and cel.get_class_name() == "PixelCel":
+				images_data.append(cel_image.get_data())
+	receive_updated_timeline.rpc(project_data, images_data)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func receive_updated_timeline(project_data: Dictionary, images_data: Array):
+	online_project.frames.clear()
+	online_project.layers.clear()
+	online_project.deserialize(project_data)
+	var image_index := 0
+	for frame in online_project.frames:
+		for cel in frame.cels:
+			if cel.get_class_name() != "PixelCel":
+				continue
+			var image_data: PackedByteArray = images_data[image_index]
+			var image := Image.create_from_data(
+				online_project.size.x, online_project.size.y, false, Image.FORMAT_RGBA8, image_data
+			)
+			cel.image_changed(image)
+			image_index += 1
+	online_project.change_project()
 
 
 func _on_create_server_pressed() -> void:
