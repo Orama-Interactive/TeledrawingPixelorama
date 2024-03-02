@@ -118,7 +118,7 @@ func receive_changes(data: Dictionary) -> void:
 		ExtensionsApi.general.get_canvas().update_texture(layer_index, frame_index, online_project)
 
 
-func timeline_updated():
+func timeline_updated() -> void:
 	var project_data: Dictionary = online_project.serialize()
 	var images_data: Array = []
 	for frame in online_project.frames:
@@ -130,7 +130,7 @@ func timeline_updated():
 
 
 @rpc("any_peer", "call_remote", "reliable")
-func receive_updated_timeline(project_data: Dictionary, images_data: Array):
+func receive_updated_timeline(project_data: Dictionary, images_data: Array) -> void:
 	online_project.frames.clear()
 	online_project.layers.clear()
 	online_project.deserialize(project_data)
@@ -145,6 +145,16 @@ func receive_updated_timeline(project_data: Dictionary, images_data: Array):
 			)
 			cel.image_changed(image)
 			image_index += 1
+	# Check if a selected cel has been deleted
+	# If it has, set the selected cel to the first one
+	for cel_indices in online_project.selected_cels:
+		var frame_index: int = cel_indices[0]
+		var layer_index: int = cel_indices[1]
+		if frame_index >= online_project.frames.size() or layer_index >= online_project.layers.size():
+			online_project.selected_cels = [[0, 0]]
+			online_project.current_frame = 0
+			online_project.current_layer = 0
+			break
 	online_project.change_project()
 
 
