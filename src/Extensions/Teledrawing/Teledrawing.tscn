@@ -5,34 +5,50 @@
 [node name="Teledrawing" type="AcceptDialog"]
 disable_3d = true
 title = "Teledrawing"
-size = Vector2i(300, 201)
+size = Vector2i(300, 225)
 script = ExtResource("1_cv21r")
 
 [node name="NetworkOptions" type="VBoxContainer" parent="."]
 offset_left = 8.0
 offset_top = 8.0
 offset_right = 292.0
-offset_bottom = 152.0
+offset_bottom = 176.0
 
-[node name="CreateServer" type="Button" parent="NetworkOptions"]
+[node name="TabBar" type="TabBar" parent="NetworkOptions"]
 layout_mode = 2
-text = "Create server"
+current_tab = 0
+tab_count = 2
+tab_0/title = "Create Server"
+tab_1/title = "Join Server"
 
-[node name="HSeparator" type="HSeparator" parent="NetworkOptions"]
+[node name="GridContainer" type="GridContainer" parent="NetworkOptions"]
 layout_mode = 2
+columns = 2
 
-[node name="JoinServer" type="Button" parent="NetworkOptions"]
+[node name="IPLabel" type="Label" parent="NetworkOptions/GridContainer"]
+visible = false
 layout_mode = 2
-text = "Join server"
+text = "IPv4/IPv6 address"
 
-[node name="IPLineEdit" type="LineEdit" parent="NetworkOptions"]
+[node name="IPLineEdit" type="LineEdit" parent="NetworkOptions/GridContainer"]
+visible = false
 layout_mode = 2
+size_flags_horizontal = 3
 text = "::1"
 placeholder_text = "Insert server IP"
 
-[node name="PortLineEdit" type="LineEdit" parent="NetworkOptions"]
+[node name="PortLabel" type="Label" parent="NetworkOptions/GridContainer"]
 layout_mode = 2
+text = "Port number"
+
+[node name="PortLineEdit" type="LineEdit" parent="NetworkOptions/GridContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
 text = "18819"
+
+[node name="CreateJoinServer" type="Button" parent="NetworkOptions"]
+layout_mode = 2
+text = "Create"
 
 [node name="Disconnect" type="Button" parent="NetworkOptions"]
 unique_name_in_owner = true
@@ -40,9 +56,29 @@ visible = false
 layout_mode = 2
 text = "Disconnect"
 
+[node name="AvailableServers" type="ItemList" parent="NetworkOptions"]
+visible = false
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="BroadcastTimer" type="Timer" parent="."]
+wait_time = 5.0
+
+[node name="ListenerTimer" type="Timer" parent="."]
+wait_time = 0.5
+autostart = true
+
+[node name="RefreshTimer" type="Timer" parent="."]
+wait_time = 10.0
+
 [connection signal="visibility_changed" from="." to="." method="_on_visibility_changed"]
-[connection signal="pressed" from="NetworkOptions/CreateServer" to="." method="_on_create_server_pressed"]
-[connection signal="pressed" from="NetworkOptions/JoinServer" to="." method="_on_join_server_pressed"]
-[connection signal="text_changed" from="NetworkOptions/IPLineEdit" to="." method="_on_ip_line_edit_text_changed"]
-[connection signal="text_changed" from="NetworkOptions/PortLineEdit" to="." method="_on_port_line_edit_text_changed"]
+[connection signal="tab_changed" from="NetworkOptions/TabBar" to="." method="_on_tab_bar_tab_changed"]
+[connection signal="text_changed" from="NetworkOptions/GridContainer/IPLineEdit" to="." method="_on_ip_line_edit_text_changed"]
+[connection signal="text_changed" from="NetworkOptions/GridContainer/PortLineEdit" to="." method="_on_port_line_edit_text_changed"]
+[connection signal="pressed" from="NetworkOptions/CreateJoinServer" to="." method="_on_create_server_pressed"]
 [connection signal="pressed" from="NetworkOptions/Disconnect" to="." method="_on_disconnect_pressed"]
+[connection signal="empty_clicked" from="NetworkOptions/AvailableServers" to="." method="_on_available_servers_empty_clicked"]
+[connection signal="item_selected" from="NetworkOptions/AvailableServers" to="." method="_on_available_servers_item_selected"]
+[connection signal="timeout" from="BroadcastTimer" to="." method="_on_broadcast_timer_timeout"]
+[connection signal="timeout" from="ListenerTimer" to="." method="_on_listener_timer_timeout"]
+[connection signal="timeout" from="RefreshTimer" to="." method="_on_refresh_timer_timeout"]
